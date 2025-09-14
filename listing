@@ -1,0 +1,103 @@
+globals [
+  initial-trees  ;; початкова кількість дерев
+  initial-resistant-trees ;; початкова кількість дерев, які горять довше
+  initial-spreadable-trees ;; початкова кількість дерев, які краще розповсюджують вогонь
+  burned-resistant-trees ;; згорівші дерева
+  burned-spreadable-trees
+  burned-trees   
+  fire-direction  ;; напрямок руху воню
+  wind-direction  ;; напрямок руху вітру
+  wind-strength   ;; сила вітру
+   tree-type ;; тип дерева
+]
+breed [fires fire]     ;; яскраво-червоні черепашки - передній край вогню
+breed [embers ember]   ;; черепашки, що поступово зникають від червоного до майже чорного 
+breed [green-trees tree]  ;; дерева, які можуть бути світло- або темно-зеленими 
+
+to setup
+  clear-all
+  set-default-shape turtles "square"
+  
+  ;; створення деякої кількості зелених дерев двох типів
+  ask patches with [(random-float 100) < density]
+    [ ifelse random-float 1 < 0.5
+      [ set pcolor 44    ;; темно зелений колір
+        set tree-type "resistant" ] ;; тип дерев, який горить повільно
+      [ set pcolor green  ;; світло-зелений колір
+        set tree-type "spreadable" ] ;; тип дерев, який швидко розповсюджує вогонь
+    ]
+  
+  ;; створення колонки горящих дерев
+  ask patches with [pxcor = min-pxcor]
+    [ ignite ]
+    
+  ;; встановлення кількості дерев
+  set initial-trees count patches with [tree-type = "resistant" or tree-type = "spreadable"]
+  set initial-resistant-trees count patches with [tree-type = "resistant"]
+  set initial-spreadable-trees count patches with [tree-type = "spreadable"]
+  set burned-trees 0
+  set burned-resistant-trees 0
+  set burned-spreadable-trees 0
+  
+  ;; встановлюємо напрямок вогню (рандомний)
+  set fire-direction random 360
+  
+  reset-ticks ;; скидаємо лічильник
+end
+
+to go
+  if not any? turtles  ;;якщо більше немає дерев-зупиняємось
+    [ stop ]
+    
+  ;; Обчислює множник поширення на основі відсотка залишених дерев, що легко розповсюджують вогонь
+  let spread-factor 0
+  if initial-spreadable-trees > 0 [
+    set spread-factor 0.5 + 0.5 * (count patches with [tree-type = "spreadable" and pcolor = green] / initial-spreadable-trees)
+  ]
+  ;; задаємо кольори деревам, в залежності від типу
+  ask fires
+    [ ask neighbors with [pcolor = green]
+        [ ifelse [tree-type] of myself = "resistant"
+          [ set pcolor 34    ;; dark yellowish green
+            set tree-type "burned-resistant" ]
+          [ set pcolor yellow  ;; light yellow
+            set tree-type "burned-spreadable" ]
+          ignite ]
+      set breed embers ]
+  ;; функція fade-embers виконується на всіх "embers" (вогнища) і змінює їх колір на темніший. Якщо колір стає менше за червоний на 3,5 одиниць, вогнище помирає та зникає.
+  fade-embers
+  ifelse initial-spreadable-trees = 0
+  [set spread-factor 0.5]
+  [set spread-factor 0.5 + 0.5 * (count patches with [tree-type = "spreadable" and pcolor = green] / initial-spreadable-trees)]
+  spread-fires spread-factor
+  
+  tick
+end
+;; створюємо вогнища і змінюють їх колір на червоний. Також змінюємо колір патчів на чорний, якщо на них стоїть дерево, яке горить, і збільшуємо кількість вигорілих дерев.
+;; creates the fire turtles
+to ignite
+  sprout-fires 1
+    [ set color red
+      ;; set fire direction
+      set heading fire-direction ]
+  set pcolor black
+  set burned-trees burned-trees + 1
+  ifelse tree-type = "resistant"
+    [ set burned-resistant-trees burned-resistant-trees + 1 ]
+    [ set burned-spreadable-trees burned-spreadable-trees + 1 ]
+end
+
+to fade-embers
+  ask embers
+    [ set color color - 0.3  ;; make red darker
+      if color < red - 3.5     ;; are we almost at black?
+        [ set pcolor color
+          die ] ]
+end
+;; розповсюджуємо вогонь на близькі дерева
+to spread-fires [spread-factor]
+  ask patches with [pcolor = red]
+    [ ask neighbors with [pcolor = green and random-float 1 < spread-factor]
+        [ ignite ] ]
+End
+
