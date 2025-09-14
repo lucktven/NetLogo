@@ -1,0 +1,70 @@
+globals [
+  partner
+  price
+  price-sum
+]
+
+to setup
+  clear-all
+  set-patch-size 10
+  resize-world -10 10 -10 10
+  ; створення стін
+  ask patches with [ pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor ] [ set pcolor black ]
+  ; розміщення телепортів
+  ask n-of 5 patches with [ not any? neighbors with [ pcolor = blue ] ] [
+    sprout 1 [ set shape "circle" set size 2 set color blue ]
+    ask one-of neighbors with [ not any? neighbors with [ pcolor = blue ] ] [
+      sprout 1 [ set shape "circle" set size 2 set color blue ]
+      ; збереження плати за використання телепорта
+      ask myself [ set partner other-end ]
+      ask partner [ set partner myself ]
+      ask myself [ set price random-float 10 ]
+      ask partner [ set price [price] of myself ]
+    ]
+  ]
+  ; розміщення агента
+  create-turtles 1 [
+    set color green
+    setxy random-xcor random-ycor
+    set heading random 360
+    while [ pcolor = black ] [
+      setxy random-xcor random-ycor
+    ]
+  ]
+  reset-ticks
+end
+
+to go
+  ; рух агента
+  ask turtles [
+    ifelse any? patches in-radius 1 with [ pcolor != black and not any? turtles-here ] [
+      move-to one-of patches in-radius 1 with [ pcolor != black and not any? turtles-here ]
+    ] [
+      rt random-float 360
+    ]
+  ]
+  ; перевірка на знаходження телепорту
+  ask turtles [
+    let nearest-teleport min-one-of patches with [ pcolor = blue ] [ distance myself ]
+    if nearest-teleport != nobody [
+      let target-teleport find-target-teleport nearest-teleport
+      ; перехід через телепорт, якщо агент на цьому телепорті
+      if target-teleport != nobody and distance target-teleport = 0 [
+        setxy [pxcor] of target-teleport [pycor] of target-teleport
+      ]
+    ]
+  ]
+  tick
+end
+
+to find-target-teleport [ this-teleport ]
+  ; пошук телепорту, що з'єднується з поточним телепортом
+  let possible-targets patches with [ pcolor = blue and self != this-teleport ]
+  let target one-of possible-targets with [ [partner] of self = this-teleport ]
+  if target != nobody [
+    let price [price] of this-teleport + [price] of target
+    ask this-teleport [ set price-sum price ]
+    ask target [ set price-sum price ]
+  ]
+  report target
+end
